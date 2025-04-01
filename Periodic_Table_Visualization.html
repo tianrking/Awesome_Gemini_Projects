@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Periodic Table Atom Simulation (Rows 1-5)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Basic styling */
+        body {
+            margin: 0;
+            font-family: Inter, sans-serif;
+            background-color: #111827; /* gray-900 */
+            color: #d1d5db; /* gray-300 */
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #controls {
+            width: auto; /* Adjust width based on content */
+            min-width: 400px; /* Increased minimum width for larger table */
+            padding: 1rem; /* p-4 */
+            overflow-y: auto; /* Allow scrolling */
+            background-color: #1f2937; /* gray-800 */
+            border-right: 1px solid #374151; /* gray-700 */
+            max-height: 100vh; /* Ensure controls can scroll */
+        }
+        #simulation {
+            flex-grow: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #0f172a; /* Slightly darker bg for contrast */
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 600px; /* Max width for info box */
+            text-align: center;
+            z-index: 100;
+            color: #9ca3af; /* gray-400 */
+            background-color: rgba(31, 41, 55, 0.8); /* gray-800 with opacity */
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem; /* rounded-md */
+            font-size: 0.875rem; /* text-sm */
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #container {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        /* Style for periodic table grid */
+        #periodic-table-grid {
+            display: grid;
+            grid-template-columns: repeat(18, minmax(0, 1fr));
+            gap: 0.25rem; /* gap-1 */
+            max-width: 600px; /* Limit width */
+            margin: 0 auto; /* Center the grid */
+        }
+        /* Style for element buttons in the grid */
+        .element-button {
+            padding: 0.5rem 0.25rem; /* p-2 px-1 */
+            font-size: 0.75rem; /* text-xs */
+            background-color: #374151; /* gray-700 */
+            color: #f3f4f6; /* gray-100 */
+            border: 1px solid #4b5563; /* gray-600 */
+            border-radius: 0.25rem; /* rounded-sm */
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 45px; /* Slightly reduced height for 5 rows */
+        }
+        .element-button:hover {
+            background-color: #4b5563; /* gray-600 */
+            transform: scale(1.05);
+        }
+        .element-button.active {
+            background-color: #1d4ed8; /* blue-700 */
+            border-color: #2563eb; /* blue-600 */
+            color: #fff;
+            font-weight: 600; /* font-semibold */
+            transform: scale(1.05);
+        }
+        .element-symbol {
+            font-weight: bold;
+            font-size: 0.875rem; /* text-sm */
+        }
+        .element-z {
+            font-size: 0.65rem; /* text-[10px] */
+            opacity: 0.7;
+        }
+        /* Style for empty cells in the grid */
+        .empty-cell {
+            border-radius: 0.25rem; /* rounded-sm */
+            min-height: 45px;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <h2 class="text-lg font-semibold mb-4 text-gray-100 text-center">Periodic Table (Rows 1-5)</h2>
+        <div id="periodic-table-grid">
+            </div>
+    </div>
+
+    <div id="simulation">
+        <div id="info">Select an element to visualize (Simplified Bohr Model)<br>Drag mouse to rotate, scroll to zoom</div>
+        <div id="container">
+            <canvas id="atomCanvas"></canvas>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // --- Global Variables ---
+        let scene, camera, renderer, controls;
+        let nucleus;
+        let atomGroup; // Group to hold nucleus, electrons, orbits, and force lines
+        let currentElectrons = []; // Array to hold electron objects {mesh, angle, speed, radius, orbitPlaneRotation, forceLine}
+        let currentOrbitPaths = []; // Array to hold orbit path meshes
+        let activeElementButton = null;
+
+        // --- Element Data (Simplified Shells - Updated for Rows 1-5) ---
+        // Using standard electron configurations for shell counts beyond Ca
+        const elements = [
+            // Row 1
+            { Z: 1, symbol: 'H', name: 'Hydrogen', shells: [1], row: 1, col: 1 },
+            { Z: 2, symbol: 'He', name: 'Helium', shells: [2], row: 1, col: 18 },
+            // Row 2
+            { Z: 3, symbol: 'Li', name: 'Lithium', shells: [2, 1], row: 2, col: 1 },
+            { Z: 4, symbol: 'Be', name: 'Beryllium', shells: [2, 2], row: 2, col: 2 },
+            { Z: 5, symbol: 'B', name: 'Boron', shells: [2, 3], row: 2, col: 13 },
+            { Z: 6, symbol: 'C', name: 'Carbon', shells: [2, 4], row: 2, col: 14 },
+            { Z: 7, symbol: 'N', name: 'Nitrogen', shells: [2, 5], row: 2, col: 15 },
+            { Z: 8, symbol: 'O', name: 'Oxygen', shells: [2, 6], row: 2, col: 16 },
+            { Z: 9, symbol: 'F', name: 'Fluorine', shells: [2, 7], row: 2, col: 17 },
+            { Z: 10, symbol: 'Ne', name: 'Neon', shells: [2, 8], row: 2, col: 18 },
+            // Row 3
+            { Z: 11, symbol: 'Na', name: 'Sodium', shells: [2, 8, 1], row: 3, col: 1 },
+            { Z: 12, symbol: 'Mg', name: 'Magnesium', shells: [2, 8, 2], row: 3, col: 2 },
+            { Z: 13, symbol: 'Al', name: 'Aluminum', shells: [2, 8, 3], row: 3, col: 13 },
+            { Z: 14, symbol: 'Si', name: 'Silicon', shells: [2, 8, 4], row: 3, col: 14 },
+            { Z: 15, symbol: 'P', name: 'Phosphorus', shells: [2, 8, 5], row: 3, col: 15 },
+            { Z: 16, symbol: 'S', name: 'Sulfur', shells: [2, 8, 6], row: 3, col: 16 },
+            { Z: 17, symbol: 'Cl', name: 'Chlorine', shells: [2, 8, 7], row: 3, col: 17 },
+            { Z: 18, symbol: 'Ar', name: 'Argon', shells: [2, 8, 8], row: 3, col: 18 },
+            // Row 4
+            { Z: 19, symbol: 'K', name: 'Potassium', shells: [2, 8, 8, 1], row: 4, col: 1 },
+            { Z: 20, symbol: 'Ca', name: 'Calcium', shells: [2, 8, 8, 2], row: 4, col: 2 },
+            { Z: 21, symbol: 'Sc', name: 'Scandium', shells: [2, 8, 9, 2], row: 4, col: 3 },
+            { Z: 22, symbol: 'Ti', name: 'Titanium', shells: [2, 8, 10, 2], row: 4, col: 4 },
+            { Z: 23, symbol: 'V', name: 'Vanadium', shells: [2, 8, 11, 2], row: 4, col: 5 },
+            { Z: 24, symbol: 'Cr', name: 'Chromium', shells: [2, 8, 13, 1], row: 4, col: 6 }, // Exception
+            { Z: 25, symbol: 'Mn', name: 'Manganese', shells: [2, 8, 13, 2], row: 4, col: 7 },
+            { Z: 26, symbol: 'Fe', name: 'Iron', shells: [2, 8, 14, 2], row: 4, col: 8 },
+            { Z: 27, symbol: 'Co', name: 'Cobalt', shells: [2, 8, 15, 2], row: 4, col: 9 },
+            { Z: 28, symbol: 'Ni', name: 'Nickel', shells: [2, 8, 16, 2], row: 4, col: 10 },
+            { Z: 29, symbol: 'Cu', name: 'Copper', shells: [2, 8, 18, 1], row: 4, col: 11 }, // Exception
+            { Z: 30, symbol: 'Zn', name: 'Zinc', shells: [2, 8, 18, 2], row: 4, col: 12 },
+            { Z: 31, symbol: 'Ga', name: 'Gallium', shells: [2, 8, 18, 3], row: 4, col: 13 },
+            { Z: 32, symbol: 'Ge', name: 'Germanium', shells: [2, 8, 18, 4], row: 4, col: 14 },
+            { Z: 33, symbol: 'As', name: 'Arsenic', shells: [2, 8, 18, 5], row: 4, col: 15 },
+            { Z: 34, symbol: 'Se', name: 'Selenium', shells: [2, 8, 18, 6], row: 4, col: 16 },
+            { Z: 35, symbol: 'Br', name: 'Bromine', shells: [2, 8, 18, 7], row: 4, col: 17 },
+            { Z: 36, symbol: 'Kr', name: 'Krypton', shells: [2, 8, 18, 8], row: 4, col: 18 },
+            // Row 5
+            { Z: 37, symbol: 'Rb', name: 'Rubidium', shells: [2, 8, 18, 8, 1], row: 5, col: 1 },
+            { Z: 38, symbol: 'Sr', name: 'Strontium', shells: [2, 8, 18, 8, 2], row: 5, col: 2 },
+            { Z: 39, symbol: 'Y', name: 'Yttrium', shells: [2, 8, 18, 9, 2], row: 5, col: 3 },
+            { Z: 40, symbol: 'Zr', name: 'Zirconium', shells: [2, 8, 18, 10, 2], row: 5, col: 4 },
+            { Z: 41, symbol: 'Nb', name: 'Niobium', shells: [2, 8, 18, 12, 1], row: 5, col: 5 }, // Exception
+            { Z: 42, symbol: 'Mo', name: 'Molybdenum', shells: [2, 8, 18, 13, 1], row: 5, col: 6 }, // Exception
+            { Z: 43, symbol: 'Tc', name: 'Technetium', shells: [2, 8, 18, 13, 2], row: 5, col: 7 }, // Or [..., 14, 1] approx.
+            { Z: 44, symbol: 'Ru', name: 'Ruthenium', shells: [2, 8, 18, 15, 1], row: 5, col: 8 }, // Exception
+            { Z: 45, symbol: 'Rh', name: 'Rhodium', shells: [2, 8, 18, 16, 1], row: 5, col: 9 }, // Exception
+            { Z: 46, symbol: 'Pd', name: 'Palladium', shells: [2, 8, 18, 18, 0], row: 5, col: 10 }, // Big Exception
+            { Z: 47, symbol: 'Ag', name: 'Silver', shells: [2, 8, 18, 18, 1], row: 5, col: 11 }, // Exception
+            { Z: 48, symbol: 'Cd', name: 'Cadmium', shells: [2, 8, 18, 18, 2], row: 5, col: 12 },
+            { Z: 49, symbol: 'In', name: 'Indium', shells: [2, 8, 18, 18, 3], row: 5, col: 13 },
+            { Z: 50, symbol: 'Sn', name: 'Tin', shells: [2, 8, 18, 18, 4], row: 5, col: 14 },
+            { Z: 51, symbol: 'Sb', name: 'Antimony', shells: [2, 8, 18, 18, 5], row: 5, col: 15 },
+            { Z: 52, symbol: 'Te', name: 'Tellurium', shells: [2, 8, 18, 18, 6], row: 5, col: 16 },
+            { Z: 53, symbol: 'I', name: 'Iodine', shells: [2, 8, 18, 18, 7], row: 5, col: 17 },
+            { Z: 54, symbol: 'Xe', name: 'Xenon', shells: [2, 8, 18, 18, 8], row: 5, col: 18 },
+        ];
+
+
+        // --- Constants ---
+        const BASE_ORBIT_RADIUS = 2.5; // Slightly smaller base
+        const SHELL_RADIUS_INCREMENT = 2.0; // Slightly smaller increment for more shells
+        const BASE_ELECTRON_SPEED = 0.02;
+        const NUCLEUS_RADIUS = 0.7; // Slightly smaller nucleus
+        const ELECTRON_RADIUS = 0.20; // Slightly smaller electrons
+        const FORCE_LINE_COLOR = 0x0ea5e9; // Tailwind sky-500 (blueish)
+        const DASH_SIZE = 0.1;
+        const GAP_SIZE = 0.07;
+
+        // --- Initialization ---
+        function init() {
+            setupScene();
+            setupControls();
+            createPeriodicTableUI(); // Use the updated UI function
+            animate();
+            // Display Hydrogen initially
+            const initialElement = elements[0];
+            updateAtomVisualization(initialElement);
+            const initialButton = document.querySelector(`.element-button[data-symbol='${initialElement.symbol}']`);
+            setActiveButton(initialButton);
+        }
+
+        // --- Scene, Camera, Renderer, Lights, Controls Setup ---
+        function setupScene() {
+            scene = new THREE.Scene();
+            atomGroup = new THREE.Group();
+            scene.add(atomGroup);
+
+            const container = document.getElementById('container');
+            const aspect = (container.clientWidth && container.clientHeight) ? container.clientWidth / container.clientHeight : 1;
+            camera = new THREE.PerspectiveCamera(75, aspect, 0.1, 1000);
+            camera.position.set(0, 8, 20); // Adjusted camera start
+
+            const canvas = document.getElementById('atomCanvas');
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(container.clientWidth || window.innerWidth * 0.7, container.clientHeight || window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setClearColor(0x0f172a); // Match simulation bg
+
+            const ambientLight = new THREE.AmbientLight(0xcccccc, 0.7); // Slightly brighter
+            scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0xffffff, 0.9, 300); // Brighter point light
+            pointLight.position.set(15, 20, 25);
+            scene.add(pointLight);
+
+            const nucleusGeometry = new THREE.SphereGeometry(NUCLEUS_RADIUS, 32, 16);
+            const nucleusMaterial = new THREE.MeshStandardMaterial({
+                color: 0xdc2626, // red-600
+                roughness: 0.6,
+                metalness: 0.2
+            });
+            nucleus = new THREE.Mesh(nucleusGeometry, nucleusMaterial);
+            atomGroup.add(nucleus);
+        }
+
+        function setupControls() {
+            if (!renderer || !renderer.domElement) {
+                console.error("Renderer not initialized before setting up controls.");
+                return;
+            }
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 3;
+            controls.maxDistance = 100; // Increased max distance for larger atoms
+            controls.target.set(0, 0, 0);
+        }
+
+        // --- Periodic Table UI Creation (Updated for 5 rows) ---
+        function createPeriodicTableUI() {
+            const gridContainer = document.getElementById('periodic-table-grid');
+            gridContainer.innerHTML = ''; // Clear previous content
+
+            // Updated filter to include elements up to row 5
+            const elementsToShow = elements.filter(el => el.row <= 5);
+            const gridCells = {}; // Store buttons by position: 'row-col'
+
+            elementsToShow.forEach(element => {
+                const button = document.createElement('button');
+                button.innerHTML = `<span class="element-z">${element.Z}</span><span class="element-symbol">${element.symbol}</span>`;
+                button.classList.add('element-button');
+                button.style.gridColumnStart = element.col;
+                button.style.gridRowStart = element.row;
+                button.dataset.symbol = element.symbol;
+
+                button.addEventListener('click', () => {
+                    updateAtomVisualization(element);
+                    setActiveButton(button);
+                });
+                gridCells[`${element.row}-${element.col}`] = button;
+            });
+
+            // Fill the grid (Updated to 5 rows, 18 columns)
+            for (let r = 1; r <= 5; r++) { // Loop through 5 rows
+                for (let c = 1; c <= 18; c++) {
+                    const cellKey = `${r}-${c}`;
+                    if (gridCells[cellKey]) {
+                        gridContainer.appendChild(gridCells[cellKey]);
+                    } else {
+                        const emptyCell = document.createElement('div');
+                        emptyCell.classList.add('empty-cell');
+                        emptyCell.style.gridColumnStart = c;
+                        emptyCell.style.gridRowStart = r;
+                        gridContainer.appendChild(emptyCell);
+                    }
+                }
+            }
+        }
+
+
+        // --- Manage Active Button State ---
+        function setActiveButton(button) {
+            if (activeElementButton) {
+                activeElementButton.classList.remove('active');
+            }
+            activeElementButton = button;
+            if (activeElementButton) {
+                activeElementButton.classList.add('active');
+            }
+        }
+
+        // --- Atom Visualization Update (Using Dashed Lines) ---
+        function updateAtomVisualization(elementData) {
+            console.log(`Visualizing ${elementData.name}`);
+            clearAtom();
+
+            const infoDiv = document.getElementById('info');
+            infoDiv.innerHTML = `${elementData.name} (${elementData.symbol}, Z=${elementData.Z}) - Shells: ${elementData.shells.join(', ')}<br>Drag mouse to rotate, scroll to zoom`;
+
+            let currentRadius = BASE_ORBIT_RADIUS;
+            const electronMaterial = new THREE.MeshStandardMaterial({
+                color: 0x2563eb, // blue-600
+                roughness: 0.8,
+                metalness: 0.1
+            });
+            // *** Use LineDashedMaterial for force lines ***
+            const forceLineMaterial = new THREE.LineDashedMaterial({
+                color: FORCE_LINE_COLOR,
+                linewidth: 1, // Note: May not be supported everywhere
+                scale: 1,
+                dashSize: DASH_SIZE,
+                gapSize: GAP_SIZE,
+                transparent: true,
+                opacity: 0.7
+            });
+
+            elementData.shells.forEach((numElectronsInShell, shellIndex) => {
+                // Skip shells marked with 0 electrons (e.g., Palladium exception)
+                if (numElectronsInShell === 0) {
+                     // Still increment radius for visual consistency if needed, or adjust logic
+                     // currentRadius += SHELL_RADIUS_INCREMENT; // Decide if empty shells should take space
+                     return;
+                }
+
+
+                const orbitRadius = currentRadius;
+                const orbit = createOrbitPath(orbitRadius, shellIndex);
+                atomGroup.add(orbit);
+                currentOrbitPaths.push(orbit);
+
+                const electronGeometry = new THREE.SphereGeometry(ELECTRON_RADIUS, 16, 8);
+                for (let i = 0; i < numElectronsInShell; i++) {
+                    const electronMesh = new THREE.Mesh(electronGeometry, electronMaterial);
+                    const angleOffset = (Math.PI * 2 * i) / numElectronsInShell;
+
+                    // Create Force Line Geometry & Mesh (using dashed material)
+                    const points = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)];
+                    const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
+                    const forceLine = new THREE.Line(lineGeometry, forceLineMaterial);
+
+                    // *** IMPORTANT: Compute line distances for dashed lines ***
+                    forceLine.computeLineDistances();
+
+                    const electron = {
+                        mesh: electronMesh,
+                        angle: angleOffset + Math.random() * 0.1,
+                        speed: BASE_ELECTRON_SPEED / Math.sqrt(shellIndex + 1.5), // Slightly adjust speed scaling
+                        radius: orbitRadius,
+                        orbitPlaneRotation: orbit.rotation,
+                        forceLine: forceLine
+                    };
+                    currentElectrons.push(electron);
+                    atomGroup.add(electronMesh);
+                    atomGroup.add(forceLine);
+                }
+                currentRadius += SHELL_RADIUS_INCREMENT; // Increment radius for the next shell
+            });
+
+            // Adjust camera distance based on the largest orbit
+            const maxRadius = (currentRadius > BASE_ORBIT_RADIUS ? currentRadius - SHELL_RADIUS_INCREMENT : BASE_ORBIT_RADIUS) + 3; // Increased padding
+            controls.maxDistance = Math.max(100, maxRadius * 3.5); // Increased max distance and zoom factor
+            camera.position.z = Math.max(20, maxRadius * 2.0); // Zoom out further
+            controls.update();
+        }
+
+        // --- Helper to create orbit path ---
+        function createOrbitPath(radius, shellIndex) {
+            const points = [];
+            const segments = 128;
+            for (let i = 0; i <= segments; i++) {
+                const theta = (i / segments) * Math.PI * 2;
+                points.push(new THREE.Vector3(Math.cos(theta) * radius, 0, Math.sin(theta) * radius));
+            }
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+                color: 0x4b5563, // gray-600
+                transparent: true,
+                opacity: 0.3 // More transparent orbits
+            });
+            const orbitPath = new THREE.Line(geometry, material);
+            // Keep tilt logic
+            orbitPath.rotation.x = (shellIndex * Math.PI / 16) % (Math.PI / 2);
+            orbitPath.rotation.y = (shellIndex * Math.PI / 24) % (Math.PI / 2);
+            return orbitPath;
+        }
+
+        // --- Clear Electrons, Orbits, and Force Lines ---
+        function clearAtom() {
+            currentElectrons.forEach(electron => {
+                atomGroup.remove(electron.mesh);
+                atomGroup.remove(electron.forceLine);
+                // Dispose geometry to free memory, especially important with many lines
+                electron.forceLine.geometry.dispose();
+            });
+            currentOrbitPaths.forEach(orbit => {
+                atomGroup.remove(orbit);
+                orbit.geometry.dispose();
+            });
+            // Consider disposing materials if creating/destroying many times
+            currentElectrons = [];
+            currentOrbitPaths = [];
+        }
+
+        // --- Handle Window Resize ---
+        function onWindowResize() {
+            const container = document.getElementById('container');
+            if (!container || container.clientWidth === 0 || container.clientHeight === 0) {
+                 console.warn("Resize event on invalid container dimensions.");
+                 return;
+            }
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Animate electrons and update force lines
+            currentElectrons.forEach(electron => {
+                electron.angle += electron.speed;
+
+                const x = Math.cos(electron.angle) * electron.radius;
+                const z = Math.sin(electron.angle) * electron.radius;
+                const localPosition = new THREE.Vector3(x, 0, z);
+                localPosition.applyEuler(electron.orbitPlaneRotation.clone());
+
+                electron.mesh.position.copy(localPosition);
+
+                // Update the force line endpoint
+                const positions = electron.forceLine.geometry.attributes.position;
+                positions.setXYZ(1, localPosition.x, localPosition.y, localPosition.z);
+                positions.needsUpdate = true;
+                // Recompute line distances if needed dynamically, but usually not necessary unless line scale changes
+                // electron.forceLine.computeLineDistances(); // Generally only needed once unless geometry scale changes
+            });
+
+            // Rotate the entire atom group slowly
+            atomGroup.rotation.y += 0.001;
+
+            if (controls) controls.update();
+            if (renderer && scene && camera) renderer.render(scene, camera);
+        }
+
+        // --- Start Simulation ---
+        window.addEventListener('resize', onWindowResize, false);
+        window.onload = function() {
+             if (typeof THREE === 'undefined' || typeof THREE.OrbitControls === 'undefined') {
+                 console.error("Three.js or OrbitControls failed to load.");
+                 document.getElementById('info').innerText = "Error: Could not load Three.js libraries.";
+                 return;
+             }
+             try {
+                 init();
+                 onWindowResize(); // Call resize after init
+             } catch (error) {
+                 console.error("Error initializing simulation:", error);
+                 document.getElementById('info').innerText = "An error occurred during initialization.";
+             }
+        };
+
+    </script>
+</body>
+</html>
