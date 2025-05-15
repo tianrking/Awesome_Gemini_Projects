@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Music Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            background-color: #0a0a0a;
+            color: #e0e0e0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; 
+            min-height: 100vh;
+        }
+
+        #container {
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #infoPanel {
+            position: relative; 
+            top: 10px; 
+            background-color: rgba(10, 10, 20, 0.85); 
+            padding: 15px; 
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0, 220, 220, 0.25);
+            z-index: 10;
+            display: flex; /* Default state */
+            flex-direction: column;
+            align-items: center;
+            gap: 12px; 
+            border: 1px solid rgba(0, 200, 200, 0.6);
+            width: 90%;
+            max-width: 450px; 
+            margin-bottom: 10px; 
+        }
+
+        #infoPanel p, #infoPanel label {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #c0c0e0; 
+        }
+        #infoPanel .param-label {
+            font-size: 0.8rem;
+            color: #a0a0c0;
+        }
+
+        #infoPanel input[type="file"] {
+            font-size: 0.9rem;
+            padding: 8px 0px; 
+            background-color: transparent; 
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            width: 100%;
+        }
+         #infoPanel input[type="file"]::file-selector-button { 
+            padding: 6px 12px;
+            margin-right: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+        }
+        #infoPanel input[type="file"]::file-selector-button:hover {
+             background-color: #0056b3;
+        }
+
+        #status {
+            font-weight: 600;
+            color: #2dd4bf; /* Tailwind teal-400 */
+        }
+
+        .control-group {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: #a0a0d0;
+        }
+        .control-group input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 8px;
+            background: #334155; /* Tailwind slate-700 */
+            border-radius: 4px;
+            outline: none;
+        }
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #38bdf8; /* Tailwind sky-400 */
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .control-group input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #38bdf8; /* Tailwind sky-400 */
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1f2937; 
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: none;
+            border: 1px solid #38bdf8; 
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.8rem;
+            text-align: center;
+            max-width: 80%;
+        }
+        .message-box button {
+            background-color: #0ea5e9; 
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.7rem;
+        }
+        .message-box button:hover {
+            background-color: #0284c7; 
+        }
+
+        #togglePanelButton {
+            position: fixed; /* Changed to fixed to stay in viewport corner */
+            top: 10px;
+            right: 10px;
+            z-index: 20; /* Above infoPanel if it were absolute */
+            padding: 8px 12px;
+            background-color: rgba(30, 41, 59, 0.7); /* Tailwind slate-800 with alpha */
+            color: #94a3b8; /* Tailwind slate-400 */
+            border: 1px solid #334155; /* Tailwind slate-700 */
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-family: 'Inter', sans-serif;
+        }
+        #togglePanelButton:hover {
+            background-color: rgba(51, 65, 85, 0.8); /* Tailwind slate-700 with alpha */
+            color: #e2e8f0; /* Tailwind slate-200 */
+        }
+
+    </style>
+</head>
+
+<body>
+    <button id="togglePanelButton">隐藏控件</button>
+
+    <div id="infoPanel">
+        <p class="text-lg font-semibold text-sky-400">Interactive Music Visualizer</p>
+        
+        <div class="control-group">
+            <input type="file" id="fileInput" accept=".mp3">
+        </div>
+        
+        <div class="control-group">
+            <label for="beatSensitivity">节拍灵敏度: <span id="beatSensitivityValue">155</span></label>
+            <input type="range" id="beatSensitivity" min="50" max="250" value="155">
+        </div>
+
+        <div class="control-group">
+            <label for="jumpHeight">跳跃高度: <span id="jumpHeightValue">3.5</span></label>
+            <input type="range" id="jumpHeight" min="1" max="10" step="0.1" value="3.5">
+        </div>
+
+        <div class="control-group">
+            <label for="cameraBobbing">镜头摆动: <span id="cameraBobbingValue">1.0</span></label>
+            <input type="range" id="cameraBobbing" min="0" max="3" step="0.1" value="1.0">
+        </div>
+
+        <p class="mt-1 text-sm">状态: <span id="status" class="text-teal-400">等待文件...</span></p>
+        <p class="text-xs text-gray-400 mt-1">提示：点击触发小跳，空格键触发同步跳跃。</p>
+    </div>
+
+    <div id="container"></div>
+    <div id="customMessageBox" class="message-box">
+        <p id="messageBoxText"></p>
+        <button id="messageBoxButton">OK</button>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+
+        // --- TrailRenderer Class ---
+        class TrailRenderer {
+            constructor(scene, numPoints = 150, color = 0xffffff, lineWidth = 0.15) {
+                this.scene = scene;
+                this.numPoints = numPoints;
+                this.points = [];
+                for (let i = 0; i < numPoints; i++) {
+                    this.points.push(new THREE.Vector3());
+                }
+                this.currentIndex = 0;
+                this.activePoints = 0;
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(numPoints * 3);
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                const material = new THREE.LineBasicMaterial({
+                    color: color, linewidth: lineWidth, opacity: 0.8, transparent: true
+                });
+                this.line = new THREE.Line(geometry, material);
+                this.line.frustumCulled = false;
+                this.scene.add(this.line);
+                this.headPosition = new THREE.Vector3();
+            }
+            advance(newPosition) {
+                this.headPosition.copy(newPosition);
+                this.points[this.currentIndex].copy(newPosition);
+                this.currentIndex = (this.currentIndex + 1) % this.numPoints;
+                if (this.activePoints < this.numPoints) this.activePoints++;
+                this.updateGeometry();
+            }
+            updateGeometry() {
+                const positions = this.line.geometry.attributes.position.array;
+                for (let i = 0; i < this.activePoints; i++) {
+                    const pointIndex = (this.currentIndex - 1 - i + this.numPoints * 2) % this.numPoints; 
+                    positions[i * 3] = this.points[pointIndex].x;
+                    positions[i * 3 + 1] = this.points[pointIndex].y;
+                    positions[i * 3 + 2] = this.points[pointIndex].z;
+                }
+                for (let i = this.activePoints; i < this.numPoints; i++) { 
+                    positions[i * 3] = this.headPosition.x;
+                    positions[i * 3 + 1] = this.headPosition.y;
+                    positions[i * 3 + 2] = this.headPosition.z;
+                }
+                this.line.geometry.setDrawRange(0, this.activePoints);
+                this.line.geometry.attributes.position.needsUpdate = true;
+            }
+            reset() {
+                this.activePoints = 0; this.currentIndex = 0;
+                const offscreenPos = new THREE.Vector3(0, 0, -2000); 
+                for (let i = 0; i < this.numPoints; i++) this.points[i].copy(offscreenPos);
+                this.updateGeometry();
+            }
+        }
+
+        // --- Global Variables ---
+        let scene, camera, renderer, composer;
+        let audioContext, analyser, source, dataArray, bufferLength;
+        const corridorLength = 300, corridorWidth = 25, particleCount = 500;
+        let particles;
+        const platformSize = new THREE.Vector3(2, 0.3, 2.5);
+        const platforms = [];
+        const maxPlatformsPerTrail = 15;
+        const lightOrbRadius = 0.35;
+        let orb1, orb2, trail1, trail2, pointLight1, pointLight2;
+
+        let beatThreshold = 155, jumpHeight = 3.5, cameraBobbingIntensity = 1.0;
+        
+        // Jump state variables: b = beat-driven, i = interactive
+        let isBJumping1 = false, bJumpProgress1 = 0, bStartPos1, bTargetPos1;
+        let isBJumping2 = false, bJumpProgress2 = 0, bStartPos2, bTargetPos2;
+        let isIjumping1 = false, iJumpProgress1 = 0, iStartPos1, iTargetZOffset1;
+        let isIjumping2 = false, iJumpProgress2 = 0, iStartPos2, iTargetZOffset2;
+        
+        const interactiveJumpHeight = 1.5;
+        const interactiveJumpDuration = 0.2;
+        const beatJumpDuration = 0.28; // Original duration for beat jumps
+
+        let lastBeatTime = 0, minBeatInterval = 0.18, nextTrailToJump = 0;
+        const clock = new THREE.Clock();
+        let gameHasStarted = false;
+
+        let beatSensitivitySlider, jumpHeightSlider, cameraBobbingSlider;
+        let beatSensitivityValueDisplay, jumpHeightValueDisplay, cameraBobbingValueDisplay;
+        let togglePanelButton, infoPanelElement;
+
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000000, 0.015); 
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 5, 15); camera.lookAt(0, 1, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+            renderer.toneMappingExposure = 0.8;
+            document.getElementById('container').appendChild(renderer.domElement);
+
+            const renderScene = new RenderPass(scene, camera);
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.3, 0.2); 
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene); composer.addPass(bloomPass);
+
+            scene.add(new THREE.AmbientLight(0x606080, 0.5));
+            const gridHelper = new THREE.GridHelper(corridorLength, 40, 0x00ffff, 0x333333);
+            gridHelper.position.y = -platformSize.y / 2; scene.add(gridHelper);
+
+            const particleGeometry = new THREE.BufferGeometry();
+            const vertices = [];
+            for (let i = 0; i < particleCount; i++) {
+                vertices.push((Math.random() - 0.5) * corridorWidth * 5, (Math.random() - 0.5) * 50 + 5, (Math.random() - 0.5) * corridorLength * 1.5 - corridorLength * 0.25);
+            }
+            particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            particles = new THREE.Points(particleGeometry, new THREE.PointsMaterial({ color: 0x5555ff, size: 0.15, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending }));
+            scene.add(particles);
+
+            const orbGeom = new THREE.SphereGeometry(lightOrbRadius, 24, 24);
+            orb1 = new THREE.Mesh(orbGeom, new THREE.MeshStandardMaterial({ color: 0xff00aa, emissive: 0xff00aa, emissiveIntensity: 2.5, roughness: 0.3, metalness: 0.1 }));
+            orb1.position.set(-corridorWidth / 5, lightOrbRadius, 5); scene.add(orb1);
+            pointLight1 = new THREE.PointLight(0xff00aa, 8, 15, 1.5); orb1.add(pointLight1);
+            orb2 = new THREE.Mesh(orbGeom, new THREE.MeshStandardMaterial({ color: 0x00aaff, emissive: 0x00aaff, emissiveIntensity: 2.5, roughness: 0.3, metalness: 0.1 }));
+            orb2.position.set(corridorWidth / 5, lightOrbRadius, 5); scene.add(orb2);
+            pointLight2 = new THREE.PointLight(0x00aaff, 8, 15, 1.5); orb2.add(pointLight2);
+
+            trail1 = new TrailRenderer(scene, 120, 0xff00aa, 3); trail1.advance(orb1.position);
+            trail2 = new TrailRenderer(scene, 120, 0x00aaff, 3); trail2.advance(orb2.position);
+
+            // UI Elements
+            beatSensitivitySlider = document.getElementById('beatSensitivity');
+            jumpHeightSlider = document.getElementById('jumpHeight');
+            cameraBobbingSlider = document.getElementById('cameraBobbing');
+            beatSensitivityValueDisplay = document.getElementById('beatSensitivityValue');
+            jumpHeightValueDisplay = document.getElementById('jumpHeightValue');
+            cameraBobbingValueDisplay = document.getElementById('cameraBobbingValue');
+            togglePanelButton = document.getElementById('togglePanelButton');
+            infoPanelElement = document.getElementById('infoPanel');
+
+            beatSensitivitySlider.value = beatThreshold; beatSensitivityValueDisplay.textContent = beatThreshold;
+            jumpHeightSlider.value = jumpHeight; jumpHeightValueDisplay.textContent = jumpHeight;
+            cameraBobbingSlider.value = cameraBobbingIntensity; cameraBobbingValueDisplay.textContent = cameraBobbingIntensity.toFixed(1);
+
+            // Event Listeners
+            beatSensitivitySlider.addEventListener('input', (e) => { beatThreshold = parseInt(e.target.value); beatSensitivityValueDisplay.textContent = beatThreshold; });
+            jumpHeightSlider.addEventListener('input', (e) => { jumpHeight = parseFloat(e.target.value); jumpHeightValueDisplay.textContent = jumpHeight.toFixed(1); });
+            cameraBobbingSlider.addEventListener('input', (e) => { cameraBobbingIntensity = parseFloat(e.target.value); cameraBobbingValueDisplay.textContent = cameraBobbingIntensity.toFixed(1); });
+            
+            togglePanelButton.addEventListener('click', () => {
+                const isHidden = infoPanelElement.style.display === 'none';
+                infoPanelElement.style.display = isHidden ? 'flex' : 'none';
+                togglePanelButton.textContent = isHidden ? '隐藏控件' : '显示控件';
+            });
+
+            window.addEventListener('resize', onWindowResize);
+            document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+            document.getElementById('messageBoxButton').addEventListener('click', () => { document.getElementById('customMessageBox').style.display = 'none'; });
+            window.addEventListener('click', handleMouseClick);
+            window.addEventListener('keydown', handleKeyDown);
+        }
+
+        // --- Audio & Visual Reset ---
+        function setupAudio(audioBuffer) {
+            if (source) { source.stop(); source.disconnect(); }
+            if (analyser) analyser.disconnect();
+            if (!audioContext || audioContext.state === 'closed') audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256; bufferLength = analyser.frequencyBinCount; dataArray = new Uint8Array(bufferLength);
+            source = audioContext.createBufferSource();
+            source.buffer = audioBuffer; source.connect(analyser); analyser.connect(audioContext.destination);
+            source.start(0);
+            document.getElementById('status').textContent = "播放中..."; gameHasStarted = true;
+            resetVisuals();
+        }
+        function resetVisuals() {
+            const initialZ = camera.position.z - 10;
+            orb1.position.set(-corridorWidth / 5, lightOrbRadius, initialZ);
+            orb2.position.set(corridorWidth / 5, lightOrbRadius, initialZ);
+            
+            isBJumping1 = false; bJumpProgress1 = 0; isBJumping2 = false; bJumpProgress2 = 0;
+            isIjumping1 = false; iJumpProgress1 = 0; isIjumping2 = false; iJumpProgress2 = 0;
+
+            trail1.reset(); trail2.reset();
+            trail1.advance(orb1.position); trail2.advance(orb2.position);
+
+            platforms.forEach(p => { scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); });
+            platforms.length = 0;
+            spawnPlatform(orb1.position.x, orb1.position.z - platformSize.z * 1.5, true);
+            spawnPlatform(orb2.position.x, orb2.position.z - platformSize.z * 1.5, false);
+            lastBeatTime = audioContext ? audioContext.currentTime : 0;
+        }
+
+        // --- File Handling ---
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                document.getElementById('status').textContent = "加载音频中...";
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if (audioContext && audioContext.state !== 'closed') {
+                         audioContext.close().then(() => { audioContext = null; loadAndPlay(e.target.result); });
+                    } else loadAndPlay(e.target.result);
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        }
+        function loadAndPlay(arrayBuffer) {
+             if (!audioContext || audioContext.state === 'closed') audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            audioContext.decodeAudioData(arrayBuffer)
+                .then(setupAudio)
+                .catch(e => { console.error("解码音频错误", e); showCustomMessage("解码音频错误: " + e.message); document.getElementById('status').textContent = "解码音频错误。"; });
+        }
+
+        // --- Platform Management ---
+        function spawnPlatform(x, z, isForTrail1) {
+            const platGeom = new THREE.BoxGeometry(platformSize.x, platformSize.y, platformSize.z);
+            const platMat = new THREE.MeshStandardMaterial({
+                color: isForTrail1 ? 0xaa0077 : 0x0077aa, emissive: isForTrail1 ? 0xff00aa : 0x00aaff,
+                emissiveIntensity: 0.4, roughness: 0.6, metalness: 0.2, transparent: true, opacity: 0.9
+            });
+            const platMesh = new THREE.Mesh(platGeom, platMat);
+            platMesh.position.set(x, 0, z); scene.add(platMesh);
+            const platObj = { mesh: platMesh, creationTime: audioContext ? audioContext.currentTime : 0, isForTrail1, targetIntensity: 2.5, currentIntensity: 0.4, isLanded: false, id: THREE.MathUtils.generateUUID() };
+            platforms.push(platObj);
+
+            const relevantPlatforms = platforms.filter(p => p.isForTrail1 === isForTrail1);
+            if (relevantPlatforms.length > maxPlatformsPerTrail) {
+                const oldPlat = relevantPlatforms.sort((a,b) => a.creationTime - b.creationTime)[0]; 
+                const idx = platforms.findIndex(p => p.id === oldPlat.id);
+                if (idx > -1) {
+                    scene.remove(platforms[idx].mesh); platforms[idx].mesh.geometry.dispose(); platforms[idx].mesh.material.dispose();
+                    platforms.splice(idx, 1);
+                }
+            }
+            return platObj;
+        }
+        function updatePlatforms(deltaTime) {
+            for (let i = platforms.length - 1; i >= 0; i--) {
+                const p = platforms[i];
+                p.currentIntensity = p.isLanded ? Math.min(p.targetIntensity, p.currentIntensity + 8 * deltaTime) : Math.max(0.2, p.currentIntensity - 0.8 * deltaTime);
+                p.mesh.material.emissiveIntensity = p.currentIntensity;
+                if (p.mesh.position.z > camera.position.z + 20) {
+                     p.mesh.material.opacity -= 2.5 * deltaTime;
+                     if (p.mesh.material.opacity <= 0) {
+                        scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); platforms.splice(i, 1);
+                     }
+                }
+            }
+        }
+        
+        // --- User Interaction Handlers ---
+        function handleMouseClick(event) {
+            if (!gameHasStarted || event.target.closest('#infoPanel') || event.target.closest('#togglePanelButton')) return; 
+
+            // Orb1 small jump if idle
+            if (!isBJumping1 && !isIjumping1) {
+                isIjumping1 = true; iJumpProgress1 = 0;
+                iStartPos1 = orb1.position.clone();
+                iTargetZOffset1 = -1; // Small forward Z offset
+            }
+        }
+        function handleKeyDown(event) {
+            if (!gameHasStarted || event.code !== 'Space') return;
+            event.preventDefault(); 
+
+            // Orb1 sync jump if idle
+            if (!isBJumping1 && !isIjumping1) {
+                isIjumping1 = true; iJumpProgress1 = 0;
+                iStartPos1 = orb1.position.clone();
+                iTargetZOffset1 = -1.5; 
+            }
+            // Orb2 sync jump if idle
+            if (!isBJumping2 && !isIjumping2) {
+                isIjumping2 = true; iJumpProgress2 = 0;
+                iStartPos2 = orb2.position.clone();
+                iTargetZOffset2 = -1.5;
+            }
+        }
+
+        // --- Animation & Game Logic ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const deltaTime = clock.getDelta();
+
+            // Beat detection and main jump logic
+            if (gameHasStarted && audioContext && source && analyser && audioContext.state === 'running') {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0; for (let i = 0; i < bufferLength / 3; i++) sum += dataArray[i];
+                let average = sum / (bufferLength / 3);
+                const currentTime = audioContext.currentTime;
+
+                if (average > beatThreshold && (currentTime - lastBeatTime) > minBeatInterval) {
+                    lastBeatTime = currentTime;
+                    let targetX, targetZOffset = -platformSize.z * (1.8 + Math.random() * 1.2);
+                    
+                    if (nextTrailToJump === 0) {
+                        if (!isBJumping1 && !isIjumping1) { // Orb1 must be completely idle
+                            targetX = -corridorWidth / 5 + (Math.random() - 0.5) * (platformSize.x * 0.3);
+                            bStartPos1 = orb1.position.clone();
+                            const newPlatform = spawnPlatform(targetX, orb1.position.z + targetZOffset, true);
+                            bTargetPos1 = newPlatform.mesh.position.clone().setY(lightOrbRadius);
+                            platforms.filter(p => p.isForTrail1 && p !== newPlatform).forEach(p => p.isLanded = false);
+                            newPlatform.isLanded = false; 
+                            isBJumping1 = true; bJumpProgress1 = 0;
+                        }
+                        nextTrailToJump = 1; // Pass turn even if jump didn't occur due to orb being busy
+                    } else { // nextTrailToJump === 1
+                         if (!isBJumping2 && !isIjumping2) { // Orb2 must be completely idle
+                            targetX = corridorWidth / 5 + (Math.random() - 0.5) * (platformSize.x * 0.3);
+                            bStartPos2 = orb2.position.clone();
+                            const newPlatform = spawnPlatform(targetX, orb2.position.z + targetZOffset, false);
+                            bTargetPos2 = newPlatform.mesh.position.clone().setY(lightOrbRadius);
+                            platforms.filter(p => !p.isForTrail1 && p !== newPlatform).forEach(p => p.isLanded = false);
+                            newPlatform.isLanded = false;
+                            isBJumping2 = true; bJumpProgress2 = 0;
+                        }
+                        nextTrailToJump = 0; // Pass turn
+                    }
+                }
+            }
+
+            // Update Beat-Driven Jumps (isBJumping, bJumpProgress, bStartPos, bTargetPos)
+            if (isBJumping1) {
+                bJumpProgress1 += deltaTime / (beatJumpDuration - 0.05); 
+                if (bJumpProgress1 >= 1) {
+                    bJumpProgress1 = 1; isBJumping1 = false; orb1.position.copy(bTargetPos1);
+                    const landedPlatform = platforms.find(p => p.mesh.position.distanceTo(bTargetPos1) < 0.2 && p.isForTrail1);
+                    if(landedPlatform) landedPlatform.isLanded = true;
+                } else {
+                    orb1.position.x = THREE.MathUtils.lerp(bStartPos1.x, bTargetPos1.x, bJumpProgress1);
+                    orb1.position.z = THREE.MathUtils.lerp(bStartPos1.z, bTargetPos1.z, bJumpProgress1);
+                    orb1.position.y = bStartPos1.y + Math.sin(bJumpProgress1 * Math.PI) * jumpHeight;
+                }
+            }
+            if (isBJumping2) {
+                bJumpProgress2 += deltaTime / (beatJumpDuration - 0.05);
+                if (bJumpProgress2 >= 1) {
+                    bJumpProgress2 = 1; isBJumping2 = false; orb2.position.copy(bTargetPos2);
+                    const landedPlatform = platforms.find(p => p.mesh.position.distanceTo(bTargetPos2) < 0.2 && !p.isForTrail1);
+                    if(landedPlatform) landedPlatform.isLanded = true;
+                } else {
+                    orb2.position.x = THREE.MathUtils.lerp(bStartPos2.x, bTargetPos2.x, bJumpProgress2);
+                    orb2.position.z = THREE.MathUtils.lerp(bStartPos2.z, bTargetPos2.z, bJumpProgress2);
+                    orb2.position.y = bStartPos2.y + Math.sin(bJumpProgress2 * Math.PI) * jumpHeight;
+                }
+            }
+
+            // Update Interactive Jumps (isIjumping, iJumpProgress, iStartPos, iTargetZOffset)
+            if (isIjumping1) {
+                iJumpProgress1 += deltaTime / interactiveJumpDuration;
+                if (iJumpProgress1 >= 1) {
+                    iJumpProgress1 = 1; isIjumping1 = false; // Reset flag
+                    orb1.position.z = iStartPos1.z + iTargetZOffset1; 
+                    orb1.position.y = iStartPos1.y; // Land at original Y
+                } else {
+                    orb1.position.z = THREE.MathUtils.lerp(iStartPos1.z, iStartPos1.z + iTargetZOffset1, iJumpProgress1);
+                    orb1.position.y = iStartPos1.y + Math.sin(iJumpProgress1 * Math.PI) * interactiveJumpHeight;
+                }
+            }
+            if (isIjumping2) {
+                iJumpProgress2 += deltaTime / interactiveJumpDuration;
+                if (iJumpProgress2 >= 1) {
+                    iJumpProgress2 = 1; isIjumping2 = false; // Reset flag
+                    orb2.position.z = iStartPos2.z + iTargetZOffset2;
+                    orb2.position.y = iStartPos2.y; // Land at original Y
+                } else {
+                    orb2.position.z = THREE.MathUtils.lerp(iStartPos2.z, iStartPos2.z + iTargetZOffset2, iJumpProgress2);
+                    orb2.position.y = iStartPos2.y + Math.sin(iJumpProgress2 * Math.PI) * interactiveJumpHeight;
+                }
+            }
+
+            trail1.advance(orb1.position); trail2.advance(orb2.position);
+            
+            if (gameHasStarted) {
+                const avgZ = (orb1.position.z + orb2.position.z) / 2;
+                const bobFactor = cameraBobbingIntensity * 0.5;
+                const camZ = avgZ + 12 + Math.sin(clock.elapsedTime * 0.5 * cameraBobbingIntensity) * bobFactor;
+                const camY = 5 + Math.cos(clock.elapsedTime * 0.3 * cameraBobbingIntensity) * bobFactor * 0.6;
+                camera.position.z = THREE.MathUtils.lerp(camera.position.z, camZ, 0.03);
+                camera.position.y = THREE.MathUtils.lerp(camera.position.y, camY, 0.03);
+                camera.lookAt(0, 1 + Math.sin(clock.elapsedTime * 0.2 * cameraBobbingIntensity) * bobFactor * 0.4, avgZ + 2);
+
+                const drift = 0.3 * deltaTime;
+                if (!isBJumping1 && !isIjumping1) orb1.position.z -= drift;
+                if (!isBJumping2 && !isIjumping2) orb2.position.z -= drift;
+
+                const minZ = camera.position.z - 25; // Keep orbs from falling too far
+                if (orb1.position.z > camera.position.z - 5 && !isBJumping1 && !isIjumping1) orb1.position.z = Math.max(minZ, orb1.position.z - drift * 5);
+                if (orb2.position.z > camera.position.z - 5 && !isBJumping2 && !isIjumping2) orb2.position.z = Math.max(minZ, orb2.position.z - drift * 5);
+
+                particles.position.z += 1.5 * deltaTime;
+                if (particles.position.z > corridorLength * 0.75) particles.position.z = -corridorLength * 0.75;
+            }
+            updatePlatforms(deltaTime);
+            composer.render();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight);
+        }
+        function showCustomMessage(message) {
+            const mb = document.getElementById('customMessageBox');
+            document.getElementById('messageBoxText').textContent = message; mb.style.display = 'block';
+        }
+
+        init(); animate();
+        document.body.addEventListener('click', () => { if (audioContext && audioContext.state === 'suspended') audioContext.resume(); }, { once: true });
+    </script>
+</body>
+</html>
