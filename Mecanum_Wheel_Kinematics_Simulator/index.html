@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>麥克納姆輪運動學互動演示 (2D深色優化最終版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            background-color: #1f2937; /* Tailwind gray-800 for dark background */
+            color: #d1d5db; /* Tailwind gray-300 for default text */
+        }
+        .container {
+            background-color: #374151; /* Tailwind gray-700 for main container */
+            border-radius: 0.75rem; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+        }
+        .tab-button { 
+            padding: 0.75rem 1.5rem; 
+            cursor: pointer; 
+            border-bottom: 3px solid transparent; 
+            transition: all 0.3s ease-in-out;
+            font-weight: 500;
+            color: #9ca3af; /* Tailwind gray-400 for inactive tab text */
+        }
+        .tab-button.active { 
+            border-bottom-color: #60a5fa; /* Tailwind blue-400 for active tab */
+            color: #eff6ff; /* Tailwind blue-50 for active tab text */
+            font-weight: 600; 
+        }
+        .tab-button:hover:not(.active) { 
+            background-color: #4b5563; /* Tailwind gray-600 for hover */
+            color: #e5e7eb; /* Tailwind gray-200 on hover */
+        }
+
+        input[type="range"] { 
+            -webkit-appearance: none; 
+            appearance: none; 
+            width: 100%; 
+            height: 12px; 
+            background: #4b5563; /* Tailwind gray-600 for track */
+            border-radius: 6px; 
+            outline: none; 
+            opacity: 0.85; 
+            transition: opacity .2s, box-shadow .2s;
+        }
+        input[type="range"]:hover { opacity: 1; box-shadow: 0 0 8px rgba(96, 165, 250, 0.4); } /* Blue glow */
+        input[type="range"]::-webkit-slider-thumb { 
+            -webkit-appearance: none; 
+            appearance: none; 
+            width: 24px; 
+            height: 24px; 
+            background: #60a5fa; /* Tailwind blue-400 for thumb */
+            border-radius: 50%; 
+            cursor: pointer; 
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3); 
+            transition: transform 0.15s ease-out, box-shadow 0.15s ease-out; 
+        }
+        input[type="range"]::-webkit-slider-thumb:active { 
+            transform: scale(1.15); 
+            box-shadow: 0 0 0 6px rgba(96, 165, 250, 0.3); 
+        }
+        input[type="range"]::-moz-range-thumb { 
+            width: 24px; 
+            height: 24px; 
+            background: #60a5fa; 
+            border-radius: 50%; 
+            cursor: pointer; 
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .formula-box { 
+            background-color: #4b5563; /* Tailwind gray-600 */
+            padding: 1.5rem; 
+            border-radius: 0.5rem; 
+            margin-top: 1.25rem; 
+            font-size: 1em; 
+            line-height: 2; 
+            border: 1px solid #6b7280; /* Tailwind gray-500 */
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+            color: #e5e7eb; /* Light text for formulas */
+        }
+        .formula-box p { margin-bottom: 0.75rem; }
+        .formula-box .font-semibold { margin-bottom: 1rem; color: #f9fafb; } /* Tailwind gray-50 */
+
+        .slider-label { min-width: 125px; text-align: right; margin-right: 1rem; color: #d1d5db; font-size: 0.9rem;}
+        .slider-value { min-width: 75px; text-align: left; font-weight: 600; color: #93c5fd; font-size: 0.9rem;} /* Tailwind blue-300 */
+        
+        sub, sup { font-size: 0.8em; line-height: 0; position: relative; vertical-align: baseline; }
+        sup { top: -0.6em; }
+        sub { bottom: -0.3em; }
+
+        .section-card { background-color: #4b5563; border-radius: 0.75rem; border: 1px solid #6b7280; } /* Tailwind gray-600 with gray-500 border */
+        .simulation-card { background-color: #4b5563; border-radius: 0.75rem; border: 1px solid #6b7280;} 
+        
+        .svg-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 350px; 
+            background-color: #2c3e50; /* Darker blue-gray for SVG background */
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -1px rgba(0,0,0,0.15), inset 0 0 0 1px rgba(255,255,255,0.05);
+            overflow: hidden;
+            padding: 1rem;
+        }
+
+        /* SVG specific styles for animation */
+        .chassis-arrow { 
+            stroke-width: 3; 
+            marker-end: url(#arrowhead); 
+        }
+        .wheel-roller-group .roller-line {
+            stroke: #9ca3af; 
+            stroke-width: 2.5; 
+        }
+        .wheel-circle {
+            fill: rgba(107, 114, 128, 0.4); 
+            stroke: rgba(156, 163, 175, 0.7); 
+            stroke-width: 2;
+        }
+        .chassis-rect {
+            fill: rgba(75, 85, 99, 0.3); 
+            stroke: rgba(156, 163, 175, 0.8); 
+            stroke-width: 2.5;
+            rx: 12;
+        }
+        .wheel-rotation-indicator {
+            stroke-width: 2; 
+            fill: none;
+            marker-end: url(#arrowhead-small);
+        }
+        .wheel-label {
+            fill: #e5e7eb; 
+            font-size: 0.75rem; 
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body class="bg-gray-800 p-4 md:p-8">
+    <div class="container mx-auto max-w-5xl bg-gray-700 p-6 md:p-8 rounded-lg shadow-xl">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-50 tracking-tight">麥克納姆輪運動學互動模擬</h1>
+        </header>
+
+        <section class="mb-10 p-6 section-card">
+            <h2 class="text-2xl font-semibold text-gray-100 mb-5">參數設定</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 items-center">
+                <div>
+                    <label for="trackWidth" class="block text-sm font-medium text-gray-200 mb-1">輪距 (D<sub>X</sub>) (m):</label>
+                    <input type="number" id="trackWidth" value="0.18" step="0.01" class="mt-1 block w-full p-3 bg-gray-700 border-gray-500 text-gray-50 rounded-lg shadow-sm focus:ring-blue-400 focus:border-blue-400 text-sm transition-shadow duration-150 focus:shadow-md">
+                    <p class="text-xs text-gray-400 mt-2">底盤Y軸上兩輪中心的間距。</p>
+                </div>
+                <div>
+                    <label for="wheelBase" class="block text-sm font-medium text-gray-200 mb-1">軸距 (D<sub>Y</sub>) (m):</label>
+                    <input type="number" id="wheelBase" value="0.25" step="0.01" class="mt-1 block w-full p-3 bg-gray-700 border-gray-500 text-gray-50 rounded-lg shadow-sm focus:ring-blue-400 focus:border-blue-400 text-sm transition-shadow duration-150 focus:shadow-md">
+                    <p class="text-xs text-gray-400 mt-2">底盤X軸上兩輪中心的間距。</p>
+                </div>
+            </div>
+             <p class="text-sm text-gray-300 mt-4">運動學因子 K = L<sub>x</sub> + L<sub>y</sub> (其中 L<sub>x</sub> = D<sub>Y</sub>/2, L<sub>y</sub> = D<sub>X</sub>/2)。</p>
+        </section>
+
+        <section class="mb-10">
+            <h2 class="text-2xl font-semibold text-gray-100 mb-5">運動學解算與模擬</h2>
+            <div class="border-b border-gray-600">
+                <nav class="flex -mb-px">
+                    <button id="tab-inverse" class="tab-button active" onclick="showTab('inverse')">逆運動學</button>
+                    <button id="tab-forward" class="tab-button" onclick="showTab('forward')">正運動學</button>
+                </nav>
+            </div>
+
+            <div id="content-inverse" class="py-6">
+                <p class="text-base text-gray-300 mb-6">根據底盤的目標速度（v<sub>tx</sub>, v<sub>ty</sub>, &omega;）計算每個輪子的速度（v<sub>w1</sub>, v<sub>w2</sub>, v<sub>w3</sub>, v<sub>w4</sub>）。</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="space-y-6 p-6 simulation-card">
+                        <h3 class="text-xl font-medium text-gray-100">輸入：底盤速度</h3>
+                        <div class="flex items-center">
+                            <span class="slider-label">v<sub>tx</sub> (米/秒):</span>
+                            <input type="range" id="vtx_inv" min="-1" max="1" value="0.5" step="0.01" class="flex-grow">
+                            <span id="vtx_inv_val" class="slider-value ml-4">0.50</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="slider-label">v<sub>ty</sub> (米/秒):</span>
+                            <input type="range" id="vty_inv" min="-1" max="1" value="0" step="0.01" class="flex-grow">
+                            <span id="vty_inv_val" class="slider-value ml-4">0.00</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="slider-label">&omega; (弧度/秒):</span>
+                            <input type="range" id="omega_inv" min="-2" max="2" value="0" step="0.01" class="flex-grow">
+                            <span id="omega_inv_val" class="slider-value ml-4">0.00</span>
+                        </div>
+                        <div class="mt-6 formula-box" id="formula-box-inverse">
+                            <h4 class="font-semibold text-gray-100">計算公式 (K = <span id="f_K_value_inv">0.215</span>):</h4>
+                            <p>v<sub>w1</sub> (左前) = <span id="f_inv_vtx_w1">(0.50)</span> - <span id="f_inv_vty_w1">(0.00)</span> - <span id="f_inv_K_op_w1">(0.215)</span> &middot; <span id="f_inv_omega_op_w1">(0.00)</span></p>
+                            <p>v<sub>w2</sub> (右前) = <span id="f_inv_vtx_w2">(0.50)</span> + <span id="f_inv_vty_w2">(0.00)</span> + <span id="f_inv_K_op_w2">(0.215)</span> &middot; <span id="f_inv_omega_op_w2">(0.00)</span></p>
+                            <p>v<sub>w3</sub> (左後) = <span id="f_inv_vtx_w3">(0.50)</span> + <span id="f_inv_vty_w3">(0.00)</span> - <span id="f_inv_K_op_w3">(0.215)</span> &middot; <span id="f_inv_omega_op_w3">(0.00)</span></p>
+                            <p>v<sub>w4</sub> (右後) = <span id="f_inv_vtx_w4">(0.50)</span> - <span id="f_inv_vty_w4">(0.00)</span> + <span id="f_inv_K_op_w4">(0.215)</span> &middot; <span id="f_inv_omega_op_w4">(0.00)</span></p>
+                        </div>
+                    </div>
+                    <div class="p-6 simulation-card">
+                        <h3 class="text-xl font-medium text-gray-100 mb-4 text-center">2D 視覺化</h3>
+                        <div class="svg-container">
+                             <svg id="vis-inverse" width="100%" height="100%" viewBox="-150 -150 300 300" preserveAspectRatio="xMidYMid meet">
+                                </svg>
+                        </div>
+                        <div class="mt-6 space-y-2 text-base text-gray-300">
+                            <p>左前輪 (v<sub>w1</sub>): <span id="vw1_inv_val" class="font-semibold text-blue-300">0.00</span> 米/秒</p>
+                            <p>右前輪 (v<sub>w2</sub>): <span id="vw2_inv_val" class="font-semibold text-blue-300">0.00</span> 米/秒</p>
+                            <p>左後輪 (v<sub>w3</sub>): <span id="vw3_inv_val" class="font-semibold text-blue-300">0.00</span> 米/秒</p>
+                            <p>右後輪 (v<sub>w4</sub>): <span id="vw4_inv_val" class="font-semibold text-blue-300">0.00</span> 米/秒</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="content-forward" class="py-6 hidden">
+                <p class="text-base text-gray-300 mb-6">根據每個輪子的速度（v<sub>w1</sub>, v<sub>w2</sub>, v<sub>w3</sub>, v<sub>w4</sub>）計算底盤的速度（v<sub>tx</sub>, v<sub>ty</sub>, &omega;）。</p>
+                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="space-y-6 p-6 simulation-card">
+                        <h3 class="text-xl font-medium text-gray-100">輸入：車輪速度 (米/秒)</h3>
+                        <div class="flex items-center">
+                            <span class="slider-label">v<sub>w1</sub> (左前):</span>
+                            <input type="range" id="vw1_fwd" min="-1.5" max="1.5" value="0.5" step="0.01" class="flex-grow">
+                            <span id="vw1_fwd_val" class="slider-value ml-4">0.50</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="slider-label">v<sub>w2</sub> (右前):</span>
+                            <input type="range" id="vw2_fwd" min="-1.5" max="1.5" value="0.5" step="0.01" class="flex-grow">
+                            <span id="vw2_fwd_val" class="slider-value ml-4">0.50</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="slider-label">v<sub>w3</sub> (左後):</span>
+                            <input type="range" id="vw3_fwd" min="-1.5" max="1.5" value="0.5" step="0.01" class="flex-grow">
+                            <span id="vw3_fwd_val" class="slider-value ml-4">0.50</span>
+                        </div>
+                         <div class="flex items-center">
+                            <span class="slider-label">v<sub>w4</sub> (右後):</span>
+                            <input type="range" id="vw4_fwd" min="-1.5" max="1.5" value="0.5" step="0.01" class="flex-grow">
+                            <span id="vw4_fwd_val" class="slider-value ml-4">0.50</span>
+                        </div>
+                        <div class="mt-6 formula-box" id="formula-box-forward">
+                            <h4 class="font-semibold text-gray-100">計算公式 (K = <span id="f_K_value_fwd">0.215</span>):</h4>
+                            <p>v<sub>tx</sub> = (1/4) &middot; (<span id="f_fwd_vw1_tx_val">(0.50)</span> + <span id="f_fwd_vw2_tx_val">(0.50)</span> + <span id="f_fwd_vw3_tx_val">(0.50)</span> + <span id="f_fwd_vw4_tx_val">(0.50)</span>)</p>
+                            <p>v<sub>ty</sub> = (1/4) &middot; (-<span id="f_fwd_vw1_ty_val">(0.50)</span> + <span id="f_fwd_vw2_ty_val">(0.50)</span> + <span id="f_fwd_vw3_ty_val">(0.50)</span> - <span id="f_fwd_vw4_ty_val">(0.50)</span>)</p>
+                            <p>&omega; = [-<span id="f_fwd_vw1_om_val">(0.50)</span> + <span id="f_fwd_vw2_om_val">(0.50)</span> - <span id="f_fwd_vw3_om_val">(0.50)</span> + <span id="f_fwd_vw4_om_val">(0.50)</span>] / [4 &middot; <span id="f_fwd_K_om_val">(0.215)</span>]</p>
+                        </div>
+                    </div>
+                     <div class="p-6 simulation-card">
+                        <h3 class="text-xl font-medium text-gray-100 mb-4 text-center">2D 視覺化</h3>
+                         <div class="svg-container">
+                             <svg id="vis-forward" width="100%" height="100%" viewBox="-150 -150 300 300" preserveAspectRatio="xMidYMid meet">
+                                </svg>
+                         </div>
+                         <div class="mt-6 space-y-2 text-base text-gray-300">
+                            <p>底盤X軸速度 (v<sub>tx</sub>): <span id="vtx_fwd_val" class="font-semibold text-blue-300">0.00</span> 米/秒</p>
+                            <p>底盤Y軸速度 (v<sub>ty</sub>): <span id="vty_fwd_val" class="font-semibold text-blue-300">0.00</span> 米/秒</p>
+                            <p>底盤角速度 (&omega;): <span id="omega_fwd_val" class="font-semibold text-blue-300">0.00</span> 弧度/秒</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        let currentTab = 'inverse';
+        let trackWidth, wheelBase, Lx, Ly, K; 
+        
+        const trackWidthInput = document.getElementById('trackWidth');
+        const wheelBaseInput = document.getElementById('wheelBase');
+
+        const vtxInvSlider = document.getElementById('vtx_inv');
+        const vtyInvSlider = document.getElementById('vty_inv');
+        const omegaInvSlider = document.getElementById('omega_inv');
+        const vtxInvVal = document.getElementById('vtx_inv_val');
+        const vtyInvVal = document.getElementById('vty_inv_val');
+        const omegaInvVal = document.getElementById('omega_inv_val');
+        const vw1InvVal = document.getElementById('vw1_inv_val');
+        const vw2InvVal = document.getElementById('vw2_inv_val');
+        const vw3InvVal = document.getElementById('vw3_inv_val');
+        const vw4InvVal = document.getElementById('vw4_inv_val');
+        const visInverseSVG = document.getElementById('vis-inverse');
+        
+        const f_K_value_inv = document.getElementById('f_K_value_inv');
+        const f_inv_vtx_w1 = document.getElementById('f_inv_vtx_w1'); const f_inv_vty_w1 = document.getElementById('f_inv_vty_w1'); const f_inv_K_op_w1 = document.getElementById('f_inv_K_op_w1'); const f_inv_omega_op_w1 = document.getElementById('f_inv_omega_op_w1');
+        const f_inv_vtx_w2 = document.getElementById('f_inv_vtx_w2'); const f_inv_vty_w2 = document.getElementById('f_inv_vty_w2'); const f_inv_K_op_w2 = document.getElementById('f_inv_K_op_w2'); const f_inv_omega_op_w2 = document.getElementById('f_inv_omega_op_w2');
+        const f_inv_vtx_w3 = document.getElementById('f_inv_vtx_w3'); const f_inv_vty_w3 = document.getElementById('f_inv_vty_w3'); const f_inv_K_op_w3 = document.getElementById('f_inv_K_op_w3'); const f_inv_omega_op_w3 = document.getElementById('f_inv_omega_op_w3');
+        const f_inv_vtx_w4 = document.getElementById('f_inv_vtx_w4'); const f_inv_vty_w4 = document.getElementById('f_inv_vty_w4'); const f_inv_K_op_w4 = document.getElementById('f_inv_K_op_w4'); const f_inv_omega_op_w4 = document.getElementById('f_inv_omega_op_w4');
+
+        const vw1FwdSlider = document.getElementById('vw1_fwd');
+        const vw2FwdSlider = document.getElementById('vw2_fwd');
+        const vw3FwdSlider = document.getElementById('vw3_fwd');
+        const vw4FwdSlider = document.getElementById('vw4_fwd');
+        const vw1FwdVal = document.getElementById('vw1_fwd_val');
+        const vw2FwdVal = document.getElementById('vw2_fwd_val');
+        const vw3FwdVal = document.getElementById('vw3_fwd_val');
+        const vw4FwdVal = document.getElementById('vw4_fwd_val');
+        const vtxFwdVal = document.getElementById('vtx_fwd_val');
+        const vtyFwdVal = document.getElementById('vty_fwd_val');
+        const omegaFwdVal = document.getElementById('omega_fwd_val');
+        const visForwardSVG = document.getElementById('vis-forward');
+        
+        const f_K_value_fwd = document.getElementById('f_K_value_fwd');
+        const f_fwd_vw1_tx_val = document.getElementById('f_fwd_vw1_tx_val'); const f_fwd_vw2_tx_val = document.getElementById('f_fwd_vw2_tx_val'); const f_fwd_vw3_tx_val = document.getElementById('f_fwd_vw3_tx_val'); const f_fwd_vw4_tx_val = document.getElementById('f_fwd_vw4_tx_val');
+        const f_fwd_vw1_ty_val = document.getElementById('f_fwd_vw1_ty_val'); const f_fwd_vw2_ty_val = document.getElementById('f_fwd_vw2_ty_val'); const f_fwd_vw3_ty_val = document.getElementById('f_fwd_vw3_ty_val'); const f_fwd_vw4_ty_val = document.getElementById('f_fwd_vw4_ty_val');
+        const f_fwd_vw1_om_val = document.getElementById('f_fwd_vw1_om_val'); const f_fwd_vw2_om_val = document.getElementById('f_fwd_vw2_om_val'); const f_fwd_vw3_om_val = document.getElementById('f_fwd_vw3_om_val'); const f_fwd_vw4_om_val = document.getElementById('f_fwd_vw4_om_val');
+        const f_fwd_K_om_val = document.getElementById('f_fwd_K_om_val');
+
+        let animationFrameId_svg = null;
+        let lastTimestamp_svg = 0;
+        const animatedSvgElements = {
+            wheelRollerGroups: [null, null, null, null], 
+            chassisArrows: { vtx: null, vty: null, omega: null },
+            currentWheelSpeeds_svg: [0,0,0,0],
+            currentChassisVels_svg: {vtx:0, vty:0, omega:0},
+            wheelRollerRotations_svg: [0,0,0,0],
+            chassisArrowDashOffset_svg: 0
+        };
+
+        function updateChassisParameters() {
+            trackWidth = parseFloat(trackWidthInput.value) || 0.18;
+            wheelBase = parseFloat(wheelBaseInput.value) || 0.25;
+            Lx = wheelBase / 2; 
+            Ly = trackWidth / 2; 
+            K = Lx + Ly; 
+            
+            const kValueText = K.toFixed(3);
+            if (f_K_value_inv) f_K_value_inv.textContent = kValueText;
+            if (f_K_value_fwd) f_K_value_fwd.textContent = kValueText;
+
+            if (currentTab === 'inverse') {
+                calculateInverseKinematics();
+            } else {
+                calculateForwardKinematics();
+            }
+        }
+
+        function calculateInverseKinematics() {
+            const vtx = parseFloat(vtxInvSlider.value);
+            const vty = parseFloat(vtyInvSlider.value);
+            const omega = parseFloat(omegaInvSlider.value);
+
+            vtxInvVal.textContent = vtx.toFixed(2); vtyInvVal.textContent = vty.toFixed(2); omegaInvVal.textContent = omega.toFixed(2);
+
+            const vw1 = vtx - vty - K * omega; const vw2 = vtx + vty + K * omega; 
+            const vw3 = vtx + vty - K * omega; const vw4 = vtx - vty + K * omega; 
+
+            vw1InvVal.textContent = vw1.toFixed(2); vw2InvVal.textContent = vw2.toFixed(2); vw3InvVal.textContent = vw3.toFixed(2); vw4InvVal.textContent = vw4.toFixed(2);
+
+            if (f_inv_vtx_w1) f_inv_vtx_w1.textContent = `(${vtx.toFixed(2)})`; if (f_inv_vty_w1) f_inv_vty_w1.textContent = `(${vty.toFixed(2)})`; if (f_inv_K_op_w1) f_inv_K_op_w1.textContent = `(${K.toFixed(3)})`; if (f_inv_omega_op_w1) f_inv_omega_op_w1.textContent = `(${omega.toFixed(2)})`;
+            if(f_inv_vtx_w2) f_inv_vtx_w2.textContent = `(${vtx.toFixed(2)})`; if(f_inv_vty_w2) f_inv_vty_w2.textContent = `(${vty.toFixed(2)})`; if(f_inv_K_op_w2) f_inv_K_op_w2.textContent = `(${K.toFixed(3)})`; if(f_inv_omega_op_w2) f_inv_omega_op_w2.textContent = `(${omega.toFixed(2)})`;
+            if(f_inv_vtx_w3) f_inv_vtx_w3.textContent = `(${vtx.toFixed(2)})`; if(f_inv_vty_w3) f_inv_vty_w3.textContent = `(${vty.toFixed(2)})`; if(f_inv_K_op_w3) f_inv_K_op_w3.textContent = `(${K.toFixed(3)})`; if(f_inv_omega_op_w3) f_inv_omega_op_w3.textContent = `(${omega.toFixed(2)})`;
+            if(f_inv_vtx_w4) f_inv_vtx_w4.textContent = `(${vtx.toFixed(2)})`; if(f_inv_vty_w4) f_inv_vty_w4.textContent = `(${vty.toFixed(2)})`; if(f_inv_K_op_w4) f_inv_K_op_w4.textContent = `(${K.toFixed(3)})`; if(f_inv_omega_op_w4) f_inv_omega_op_w4.textContent = `(${omega.toFixed(2)})`;
+            
+            drawVisualizationSVG(visInverseSVG, vtx, vty, omega, [vw1, vw2, vw3, vw4]);
+            setupSvgAnimationTargetsAndStart([vw1, vw2, vw3, vw4], vtx, vty, omega);
+        }
+
+        function calculateForwardKinematics() {
+            const vw1 = parseFloat(vw1FwdSlider.value); const vw2 = parseFloat(vw2FwdSlider.value);
+            const vw3 = parseFloat(vw3FwdSlider.value); const vw4 = parseFloat(vw4FwdSlider.value);
+
+            vw1FwdVal.textContent = vw1.toFixed(2); vw2FwdVal.textContent = vw2.toFixed(2); vw3FwdVal.textContent = vw3.toFixed(2); vw4FwdVal.textContent = vw4.toFixed(2);
+            
+            const vtx = (vw1 + vw2 + vw3 + vw4) / 4;
+            const vty = (-vw1 + vw2 + vw3 - vw4) / 4;
+            const omega = K === 0 ? 0 : (-vw1 + vw2 - vw3 + vw4) / (4 * K);
+
+            vtxFwdVal.textContent = vtx.toFixed(2); vtyFwdVal.textContent = vty.toFixed(2); omegaFwdVal.textContent = omega.toFixed(2);
+
+            if (f_fwd_vw1_tx_val) f_fwd_vw1_tx_val.textContent = `(${vw1.toFixed(2)})`; if(f_fwd_vw2_tx_val) f_fwd_vw2_tx_val.textContent = `(${vw2.toFixed(2)})`; if(f_fwd_vw3_tx_val) f_fwd_vw3_tx_val.textContent = `(${vw3.toFixed(2)})`; if(f_fwd_vw4_tx_val) f_fwd_vw4_tx_val.textContent = `(${vw4.toFixed(2)})`;
+            if(f_fwd_vw1_ty_val) f_fwd_vw1_ty_val.textContent = `(${vw1.toFixed(2)})`; if(f_fwd_vw2_ty_val) f_fwd_vw2_ty_val.textContent = `(${vw2.toFixed(2)})`; if(f_fwd_vw3_ty_val) f_fwd_vw3_ty_val.textContent = `(${vw3.toFixed(2)})`; if(f_fwd_vw4_ty_val) f_fwd_vw4_ty_val.textContent = `(${vw4.toFixed(2)})`;
+            if(f_fwd_vw1_om_val) f_fwd_vw1_om_val.textContent = `(${vw1.toFixed(2)})`; if(f_fwd_vw2_om_val) f_fwd_vw2_om_val.textContent = `(${vw2.toFixed(2)})`; if(f_fwd_vw3_om_val) f_fwd_vw3_om_val.textContent = `(${vw3.toFixed(2)})`; if(f_fwd_vw4_om_val) f_fwd_vw4_om_val.textContent = `(${vw4.toFixed(2)})`;
+            if(f_fwd_K_om_val) f_fwd_K_om_val.textContent = `(${K.toFixed(3)})`;
+
+            drawVisualizationSVG(visForwardSVG, vtx, vty, omega, [vw1, vw2, vw3, vw4]);
+            setupSvgAnimationTargetsAndStart([vw1, vw2, vw3, vw4], vtx, vty, omega);
+        }
+        
+        function drawVisualizationSVG(svgElement, vtx, vty, omega, wheelSpeeds) {
+            const baseScaleFactor = 260; 
+            const visRobotWidth = Ly * 2 * baseScaleFactor;
+            const visRobotLength = Lx * 2 * baseScaleFactor;
+            const wheelRadius = Math.min(visRobotWidth, visRobotLength) * 0.16; 
+
+            svgElement.innerHTML = ''; 
+            const svgNS = "http://www.w3.org/2000/svg";
+
+            const defs = document.createElementNS(svgNS, "defs");
+            
+            const marker = document.createElementNS(svgNS, "marker");
+            marker.setAttribute("id", "arrowhead"); 
+            marker.setAttribute("markerWidth", "7"); 
+            marker.setAttribute("markerHeight", "5");
+            marker.setAttribute("refX", "6"); 
+            marker.setAttribute("refY", "2.5"); 
+            marker.setAttribute("orient", "auto-start-reverse");
+            const polygon = document.createElementNS(svgNS, "polygon"); 
+            polygon.setAttribute("points", "0 0, 7 2.5, 0 5"); 
+            polygon.setAttribute("fill", "#9ca3af"); 
+            marker.appendChild(polygon); 
+            defs.appendChild(marker);
+            
+            const markerSmall = document.createElementNS(svgNS, "marker");
+            markerSmall.setAttribute("id", "arrowhead-small"); 
+            markerSmall.setAttribute("markerWidth", "4"); 
+            markerSmall.setAttribute("markerHeight", "2.8"); 
+            markerSmall.setAttribute("refX", "3.5"); 
+            markerSmall.setAttribute("refY", "1.4"); 
+            markerSmall.setAttribute("orient", "auto-start-reverse");
+            const polygonSmall = document.createElementNS(svgNS, "polygon"); 
+            polygonSmall.setAttribute("points", "0 0, 4 1.4, 0 2.8"); 
+            polygonSmall.setAttribute("fill", "#f87171"); 
+            markerSmall.appendChild(polygonSmall); 
+            defs.appendChild(markerSmall);
+            svgElement.appendChild(defs);
+
+            const chassisRect = document.createElementNS(svgNS, "rect");
+            chassisRect.setAttribute("x", -visRobotWidth / 2); 
+            chassisRect.setAttribute("y", -visRobotLength / 2); 
+            chassisRect.setAttribute("width", visRobotWidth);   
+            chassisRect.setAttribute("height", visRobotLength); 
+            chassisRect.setAttribute("class", "chassis-rect");
+            svgElement.appendChild(chassisRect);
+            
+            const correctedWheelPositions = [
+                { x: -visRobotWidth / 2, y: -visRobotLength / 2, label: "左前(1)", rollerAngle: -45, speed: wheelSpeeds[0], idSuffix: '0' },
+                { x:  visRobotWidth / 2, y: -visRobotLength / 2, label: "右前(2)", rollerAngle: 45,  speed: wheelSpeeds[1], idSuffix: '1' },
+                { x: -visRobotWidth / 2, y:  visRobotLength / 2, label: "左後(3)", rollerAngle: 45,  speed: wheelSpeeds[2], idSuffix: '2' },
+                { x:  visRobotWidth / 2, y:  visRobotLength / 2, label: "右後(4)", rollerAngle: -45, speed: wheelSpeeds[3], idSuffix: '3' }
+            ];
+
+            correctedWheelPositions.forEach((pos, index) => {
+                const wheelGroup = document.createElementNS(svgNS, "g");
+                wheelGroup.setAttribute("transform", `translate(${pos.x}, ${pos.y})`);
+                
+                const wheelCircle = document.createElementNS(svgNS, "circle");
+                wheelCircle.setAttribute("r", wheelRadius);
+                wheelCircle.setAttribute("class", "wheel-circle");
+                wheelGroup.appendChild(wheelCircle);
+
+                const rollerGroup = document.createElementNS(svgNS, "g");
+                rollerGroup.setAttribute("id", `wheel-rollers-svg-${pos.idSuffix}`);
+                rollerGroup.setAttribute("class", "wheel-roller-group");
+                animatedSvgElements.wheelRollerGroups[index] = rollerGroup; 
+
+                for (let i = -1; i <= 1; i++) {
+                    const rollerLine = document.createElementNS(svgNS, "line");
+                    const offset = i * wheelRadius * 0.3; 
+                    rollerLine.setAttribute("x1", -wheelRadius * 0.7 * Math.cos(pos.rollerAngle * Math.PI / 180) + offset * Math.sin(pos.rollerAngle * Math.PI / 180));
+                    rollerLine.setAttribute("y1", -wheelRadius * 0.7 * Math.sin(pos.rollerAngle * Math.PI / 180) - offset * Math.cos(pos.rollerAngle * Math.PI / 180));
+                    rollerLine.setAttribute("x2", wheelRadius * 0.7 * Math.cos(pos.rollerAngle * Math.PI / 180) + offset * Math.sin(pos.rollerAngle * Math.PI / 180));
+                    rollerLine.setAttribute("y2", wheelRadius * 0.7 * Math.sin(pos.rollerAngle * Math.PI / 180) - offset * Math.cos(pos.rollerAngle * Math.PI / 180));
+                    rollerLine.setAttribute("class", "roller-line");
+                    rollerGroup.appendChild(rollerLine);
+                }
+                wheelGroup.appendChild(rollerGroup);
+                
+                const labelText = document.createElementNS(svgNS, "text");
+                labelText.setAttribute("x", "0");
+                labelText.setAttribute("y", wheelRadius + 16); 
+                labelText.setAttribute("text-anchor", "middle"); 
+                labelText.setAttribute("class", "wheel-label");
+                labelText.textContent = pos.label;
+                wheelGroup.appendChild(labelText);
+
+                if (Math.abs(pos.speed) > 0.01) { 
+                    const arcRadius = wheelRadius * 0.75; 
+                    const startAngle = pos.speed > 0 ? 225 : 135; 
+                    const endAngle = pos.speed > 0 ? 135 : 225;
+                    const startX = arcRadius * Math.cos(startAngle * Math.PI / 180); const startY = arcRadius * Math.sin(startAngle * Math.PI / 180);
+                    const endX = arcRadius * Math.cos(endAngle * Math.PI / 180); const endY = arcRadius * Math.sin(endAngle * Math.PI / 180);
+                    const largeArcFlag = "0"; const sweepFlag = pos.speed > 0 ? "0" : "1"; 
+                    const pathData = `M ${startX} ${startY} A ${arcRadius} ${arcRadius} 0 ${largeArcFlag} ${sweepFlag} ${endX} ${endY}`;
+                    const arcPath = document.createElementNS(svgNS, "path");
+                    arcPath.setAttribute("d", pathData); 
+                    arcPath.setAttribute("class", "wheel-rotation-indicator");
+                    arcPath.style.stroke = "#f87171"; 
+                    arcPath.style.opacity = `${0.6 + Math.min(0.4, Math.abs(pos.speed) * 0.5)}`; 
+                    wheelGroup.appendChild(arcPath);
+                }
+                svgElement.appendChild(wheelGroup);
+            });
+
+            const arrowLengthScale = 35; 
+            // Vtx arrow: Light Green
+            if (Math.abs(vtx) > 0.01) {
+                const vtxArrow = document.createElementNS(svgNS, "line");
+                vtxArrow.setAttribute("id", "vtx-arrow-svg");
+                vtxArrow.setAttribute("x1", "0"); vtxArrow.setAttribute("y1", "0"); vtxArrow.setAttribute("x2", "0"); vtxArrow.setAttribute("y2", -vtx * arrowLengthScale); 
+                vtxArrow.setAttribute("stroke", "#6ee7b7"); 
+                vtxArrow.setAttribute("class", "chassis-arrow");
+                vtxArrow.style.strokeDasharray = "6, 3"; 
+                animatedSvgElements.chassisArrows.vtx = vtxArrow;
+                svgElement.appendChild(vtxArrow);
+            } else { animatedSvgElements.chassisArrows.vtx = null; }
+
+            // Vty arrow: Light Orange
+            if (Math.abs(vty) > 0.01) {
+                const vtyArrow = document.createElementNS(svgNS, "line");
+                vtyArrow.setAttribute("id", "vty-arrow-svg");
+                vtyArrow.setAttribute("x1", "0"); vtyArrow.setAttribute("y1", "0"); vtyArrow.setAttribute("x2", -vty * arrowLengthScale); vtyArrow.setAttribute("y2", "0"); 
+                vtyArrow.setAttribute("stroke", "#fcd34d"); 
+                vtyArrow.setAttribute("class", "chassis-arrow");
+                vtyArrow.style.strokeDasharray = "6, 3";
+                animatedSvgElements.chassisArrows.vty = vtyArrow;
+                svgElement.appendChild(vtyArrow);
+            } else { animatedSvgElements.chassisArrows.vty = null; }
+
+            // Omega arrow: Light Purple
+            if (Math.abs(omega) > 0.01) {
+                const omegaPath = document.createElementNS(svgNS, "path");
+                omegaPath.setAttribute("id", "omega-arrow-svg");
+                const omegaRadius = Math.min(visRobotWidth, visRobotLength) * 0.20; 
+                const startAngleDeg = omega > 0 ? 70 : -70; const endAngleDeg = omega > 0 ? -70 : 70;   
+                const startX = omegaRadius * Math.cos(startAngleDeg * Math.PI / 180); const startY = omegaRadius * Math.sin(startAngleDeg * Math.PI / 180);
+                const endX = omegaRadius * Math.cos(endAngleDeg * Math.PI / 180); const endY = omegaRadius * Math.sin(endAngleDeg * Math.PI / 180);
+                const largeArcFlag = "0"; const sweepFlag = omega > 0 ? "1" : "0"; 
+                const pathData = `M ${startX} ${startY} A ${omegaRadius} ${omegaRadius} 0 ${largeArcFlag} ${sweepFlag} ${endX} ${endY}`;
+                omegaPath.setAttribute("d", pathData); 
+                omegaPath.setAttribute("stroke", "#c4b5fd"); 
+                omegaPath.setAttribute("fill", "none"); 
+                omegaPath.setAttribute("class", "chassis-arrow"); 
+                omegaPath.style.strokeWidth = `${2.5 + Math.abs(omega)*1.2}`; 
+                omegaPath.style.strokeDasharray = "8, 4"; 
+                animatedSvgElements.chassisArrows.omega = omegaPath;
+                svgElement.appendChild(omegaPath);
+            } else { animatedSvgElements.chassisArrows.omega = null; }
+        }
+        
+        function setupSvgAnimationTargetsAndStart(wheelSpeeds, vtx, vty, omega) {
+            animatedSvgElements.currentWheelSpeeds_svg = [...wheelSpeeds];
+            animatedSvgElements.currentChassisVels_svg = {vtx, vty, omega};
+
+            let motionPresent = wheelSpeeds.some(s => Math.abs(s) > 0.01) ||
+                                Math.abs(vtx) > 0.01 ||
+                                Math.abs(vty) > 0.01 ||
+                                Math.abs(omega) > 0.01;
+
+            if (motionPresent && animationFrameId_svg === null) {
+                lastTimestamp_svg = performance.now();
+                animationFrameId_svg = requestAnimationFrame(animationLoopSVG);
+            } else if (!motionPresent && animationFrameId_svg !== null) {
+                cancelAnimationFrame(animationFrameId_svg);
+                animationFrameId_svg = null;
+            }
+        }
+
+        function animationLoopSVG(timestamp) {
+            if (animationFrameId_svg === null) return;
+
+            const deltaTime = (timestamp - lastTimestamp_svg) / 1000; 
+            lastTimestamp_svg = timestamp;
+            let activeMotionThisFrame = false;
+
+            animatedSvgElements.wheelRollerGroups.forEach((rollerGroup, index) => {
+                const speed = animatedSvgElements.currentWheelSpeeds_svg[index];
+                if (rollerGroup && Math.abs(speed) > 0.01) {
+                    activeMotionThisFrame = true;
+                    const rotationAmount = speed * 120 * deltaTime; 
+                    animatedSvgElements.wheelRollerRotations_svg[index] = (animatedSvgElements.wheelRollerRotations_svg[index] + rotationAmount) % 360;
+                    rollerGroup.setAttribute('transform', `rotate(${animatedSvgElements.wheelRollerRotations_svg[index]})`);
+                }
+            });
+
+            animatedSvgElements.chassisArrowDashOffset_svg = (animatedSvgElements.chassisArrowDashOffset_svg - 40 * deltaTime) % 100; 
+            
+            if (animatedSvgElements.chassisArrows.vtx && Math.abs(animatedSvgElements.currentChassisVels_svg.vtx) > 0.01) {
+                activeMotionThisFrame = true;
+                animatedSvgElements.chassisArrows.vtx.style.strokeDashoffset = animatedSvgElements.chassisArrowDashOffset_svg;
+            }
+            if (animatedSvgElements.chassisArrows.vty && Math.abs(animatedSvgElements.currentChassisVels_svg.vty) > 0.01) {
+                activeMotionThisFrame = true;
+                animatedSvgElements.chassisArrows.vty.style.strokeDashoffset = animatedSvgElements.chassisArrowDashOffset_svg;
+            }
+            if (animatedSvgElements.chassisArrows.omega && Math.abs(animatedSvgElements.currentChassisVels_svg.omega) > 0.01) {
+                activeMotionThisFrame = true;
+                animatedSvgElements.chassisArrows.omega.style.strokeDashoffset = animatedSvgElements.chassisArrowDashOffset_svg;
+            }
+
+            if (activeMotionThisFrame) {
+                animationFrameId_svg = requestAnimationFrame(animationLoopSVG);
+            } else {
+                cancelAnimationFrame(animationFrameId_svg);
+                animationFrameId_svg = null;
+            }
+        }
+
+        window.showTab = function(tabName) { 
+            currentTab = tabName;
+            document.getElementById('content-inverse').classList.toggle('hidden', tabName !== 'inverse');
+            document.getElementById('tab-inverse').classList.toggle('active', tabName === 'inverse');
+            document.getElementById('content-forward').classList.toggle('hidden', tabName !== 'forward');
+            document.getElementById('tab-forward').classList.toggle('active', tabName === 'forward');
+            updateChassisParameters(); 
+        }
+
+        trackWidthInput.addEventListener('input', updateChassisParameters);
+        wheelBaseInput.addEventListener('input', updateChassisParameters);
+        vtxInvSlider.addEventListener('input', calculateInverseKinematics);
+        vtyInvSlider.addEventListener('input', calculateInverseKinematics);
+        omegaInvSlider.addEventListener('input', calculateInverseKinematics);
+        vw1FwdSlider.addEventListener('input', calculateForwardKinematics);
+        vw2FwdSlider.addEventListener('input', calculateForwardKinematics);
+        vw3FwdSlider.addEventListener('input', calculateForwardKinematics);
+        vw4FwdSlider.addEventListener('input', calculateForwardKinematics);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateChassisParameters(); 
+        });
+    </script>
+</body>
+</html>
